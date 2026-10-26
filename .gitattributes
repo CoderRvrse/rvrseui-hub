@@ -1,0 +1,5 @@
+# The protected build is DATA, not source. Git must never touch its bytes:
+# the payload carries CR characters inside long strings, and normalising them
+# to LF silently corrupts it (1039 bytes were stripped on the first push).
+* -text
+UniversalHub_v2.lua -text -diff
