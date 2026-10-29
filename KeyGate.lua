@@ -36,10 +36,15 @@ local HUB_URL = "https://raw.githubusercontent.com/CoderRvrse/rvrseui-hub/main/U
 local RVRSEUI_URL = "https://raw.githubusercontent.com/CoderRvrse/RvrseUI/main/RvrseUI.lua"
 local ENDPOINT = "https://luavm-rvrse-license-production.up.railway.app/api/v1/licensing/validate"
 
+-- The hub this gate opens. The full-lock build registers this id with the
+-- licence server, and the server uses it to lock a free key to one hub.
+local BUILD_ID = "4dfd04209ec5b7fa"
+
 -- A loader can point these somewhere else to test a change before it is live.
 local g = (getgenv and getgenv()) or _G or {}
 HUB_URL = g.UNIVERSALHUB_URL or HUB_URL
 RVRSEUI_URL = g.RVRSEUI_SOURCE or RVRSEUI_URL
+BUILD_ID = g.UNIVERSALHUB_BUILD_ID or BUILD_ID
 
 local function say(...)
 	if g.LUAVM_DEBUG then
@@ -115,11 +120,29 @@ local Window = RvrseUI:CreateWindow({
 		Note = "Press 'Get a free key' below, or use /getkey in the Discord.",
 
 		License = {
-			-- No BuildId on purpose. A free key is issued unbound, and an
-			-- unbound key opens any hub; naming a build here would make a
-			-- perfectly good free key come back as WRONG_HUB, which the player
-			-- reads as "invalid key".
+			-- THE BUILD ID IS NOT OPTIONAL HERE, and leaving it out is a trap
+			-- worth spelling out.
+			--
+			-- A free key is issued UNBOUND, and the server locks it to the
+			-- first registered hub it opens:
+			--
+			--     if len(rec.Builds) == 0 && c.BuildID != "" && c.BuildKnown {
+			--         rec.Builds = []string{c.BuildID}
+			--     }
+			--
+			-- That is what the owner asked for: one free key, one device, one
+			-- hub. But once a key IS locked, a validate carrying an EMPTY build
+			-- id answers WRONG_HUB -- a gate that cannot say which hub it is
+			-- cannot be trusted with a hub-locked key. So a gate without this
+			-- line would work perfectly on a player's first launch and lock
+			-- them out of every launch after it, which is the worst shape a bug
+			-- can have.
+			--
+			-- It must stay equal to the build id of the hub HUB_URL serves.
+			-- A rebuild makes a new one; change both together or the gate and
+			-- the hub stop agreeing about which hub they are.
 			Endpoint = ENDPOINT,
+			BuildId = BUILD_ID,
 		},
 
 		SaveKey = true,
