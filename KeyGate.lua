@@ -1,46 +1,20 @@
---[[
-	UniversalHub v2 -- KEY GATE
-	===========================
-
-	This is the file players run. It is small, public and unprotected on
-	purpose: its only job is to get a key into the player's hands and then
-	hand over to the real hub.
-
-	WHY IT HAS TO EXIST
-	-------------------
-	The hub itself is a FULL-LOCK build. The licence wrapper reads
-	getgenv().LUAVM_LICENSE_KEY *before a single line of hub code runs*, so a
-	key window living inside the hub could never be shown to somebody who does
-	not have a key yet. Chicken and egg: the only people who could press
-	"Get a free key" are the ones who no longer need to.
-
-	That is exactly what shipped. The public README promised "press Get a free
-	key in the key window" while the published file contained no key window at
-	all (checked 2026-10-29: KeySystem, free/start and "Get a free key" each
-	appear ZERO times in it). A new player pasted the documented line, had no
-	key set, and the licence gate refused them before anything was drawn.
-
-	So the key window moves OUT of the locked file and in front of it:
-
-	    player runs this  ->  key window (with the free-key button)
-	                      ->  getgenv().LUAVM_LICENSE_KEY = <their key>
-	                      ->  loadstring the full-lock hub
-
-	Full lock still protects the hub's source; the player still gets the free
-	key flow the README describes. Nothing here is secret -- there is no token,
-	no admin endpoint and no key in this file, only the public licence endpoint
-	every hub already calls.
-]]
+-- UniversalHub v2 -- key gate
+--
+-- What this does: opens the key window, and once a key checks out it loads
+-- the hub. That is all it does.
+--
+-- It is public on purpose. There is no key, no token and no secret in this
+-- file -- the only address it talks to is the licence endpoint below, which
+-- every copy of the hub already calls.
+--
+-- Help: https://discord.gg/FJxrnAcawn
 
 local HUB_URL = "https://raw.githubusercontent.com/CoderRvrse/rvrseui-hub/main/UniversalHub_v2.lua"
 local RVRSEUI_URL = "https://raw.githubusercontent.com/CoderRvrse/RvrseUI/main/RvrseUI.lua"
 local ENDPOINT = "https://luavm-rvrse-license-production.up.railway.app/api/v1/licensing/validate"
 
--- The hub this gate opens. The full-lock build registers this id with the
--- licence server, and the server uses it to lock a free key to one hub.
 local BUILD_ID = "b2ef1950afd7edca"
 
--- A loader can point these somewhere else to test a change before it is live.
 local g = (getgenv and getgenv()) or _G or {}
 HUB_URL = g.UNIVERSALHUB_URL or HUB_URL
 RVRSEUI_URL = g.RVRSEUI_SOURCE or RVRSEUI_URL
@@ -52,9 +26,6 @@ local function say(...)
 	end
 end
 
--- Fetch with whichever name this executor uses. game:HttpGet is the one every
--- executor has; the others are tried first only because they report failures
--- more usefully.
 local function fetch(url)
 	local fns = { syn and syn.request, http and http.request, http_request, request }
 	for _, fn in ipairs(fns) do
@@ -86,7 +57,6 @@ local function run(source, chunkName)
 	return result or true
 end
 
--- ── RvrseUI ────────────────────────────────────────────────────────
 say("fetching RvrseUI")
 local uiSource = fetch(RVRSEUI_URL)
 if not uiSource then
@@ -100,13 +70,6 @@ if type(RvrseUI) ~= "table" then
 end
 say("RvrseUI", RvrseUI.Version and RvrseUI.Version.Full or "?")
 
--- ── the key window ─────────────────────────────────────────────────
---
--- CreateWindow does not return until the key is settled, so `unlocked` is set
--- from inside OnKeyValid rather than guessed from what comes back. A window
--- object comes back either way -- a real one when the key was good, a stand-in
--- when the player closed the window -- and loading a 2.5 MB protected hub on a
--- guess is not something to get wrong.
 local unlocked, theKey = false, nil
 
 local Window = RvrseUI:CreateWindow({
@@ -120,27 +83,7 @@ local Window = RvrseUI:CreateWindow({
 		Note = "Press 'Get a free key' below, or use /getkey in the Discord.",
 
 		License = {
-			-- THE BUILD ID IS NOT OPTIONAL HERE, and leaving it out is a trap
-			-- worth spelling out.
-			--
-			-- A free key is issued UNBOUND, and the server locks it to the
-			-- first registered hub it opens:
-			--
-			--     if len(rec.Builds) == 0 && c.BuildID != "" && c.BuildKnown {
-			--         rec.Builds = []string{c.BuildID}
-			--     }
-			--
-			-- That is what the owner asked for: one free key, one device, one
-			-- hub. But once a key IS locked, a validate carrying an EMPTY build
-			-- id answers WRONG_HUB -- a gate that cannot say which hub it is
-			-- cannot be trusted with a hub-locked key. So a gate without this
-			-- line would work perfectly on a player's first launch and lock
-			-- them out of every launch after it, which is the worst shape a bug
-			-- can have.
-			--
-			-- It must stay equal to the build id of the hub HUB_URL serves.
-			-- A rebuild makes a new one; change both together or the gate and
-			-- the hub stop agreeing about which hub they are.
+
 			Endpoint = ENDPOINT,
 			BuildId = BUILD_ID,
 		},
@@ -157,26 +100,17 @@ local Window = RvrseUI:CreateWindow({
 })
 
 if not unlocked or type(theKey) ~= "string" or theKey == "" then
-	-- Closed, or out of attempts. RvrseUI has already told them why, and in
-	-- 4.8.2 closing the key window fires the close hook, so nothing is left
-	-- running behind this.
+
 	say("no key -- not loading the hub")
 	return
 end
 
--- ── hand the key to the full-lock hub ──────────────────────────────
---
--- This is the whole point of the file. The licence wrapper inside the hub
--- reads exactly this global, and RvrseUI's own one-key bridge reads it too, so
--- the player never types a key twice.
 if getgenv then
 	getgenv().LUAVM_LICENSE_KEY = theKey
 else
 	_G.LUAVM_LICENSE_KEY = theKey
 end
 
--- The gate has done its job. Take its window away before the hub draws its
--- own, so the player is never looking at two.
 pcall(function()
 	if type(Window) == "table" and type(Window.Destroy) == "function" then
 		Window:Destroy()
@@ -191,9 +125,6 @@ if not hubSource then
 end
 say("fetched " .. #hubSource .. " bytes")
 
--- Coming back after a server hop: the hub hands this to queue_on_teleport, so
--- the player arrives already keyed instead of being asked again. It carries a
--- key, so it is never printed.
 pcall(function()
 	local env = (getgenv and getgenv()) or _G
 	env.LUAVM_RELOAD = ("getgenv().LUAVM_LICENSE_KEY=%q loadstring(game:HttpGet(%q))()"):format(theKey, HUB_URL)
