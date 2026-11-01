@@ -38,7 +38,7 @@ local ENDPOINT = "https://luavm-rvrse-license-production.up.railway.app/api/v1/l
 
 -- The hub this gate opens. The full-lock build registers this id with the
 -- licence server, and the server uses it to lock a free key to one hub.
-local BUILD_ID = "e45d8b6a6ec4522d"
+local BUILD_ID = "b2ef1950afd7edca"
 
 -- A loader can point these somewhere else to test a change before it is live.
 local g = (getgenv and getgenv()) or _G or {}
