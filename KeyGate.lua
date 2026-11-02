@@ -9,9 +9,13 @@
 --
 -- Help: https://discord.gg/FJxrnAcawn
 
+local SERVER = "https://luavm-rvrse-license-production.up.railway.app"
 local HUB_URL = "https://raw.githubusercontent.com/CoderRvrse/rvrseui-hub/main/UniversalHub_v2.lua"
 local RVRSEUI_URL = "https://raw.githubusercontent.com/CoderRvrse/RvrseUI/main/RvrseUI.lua"
-local ENDPOINT = "https://luavm-rvrse-license-production.up.railway.app/api/v1/licensing/validate"
+local ENDPOINT = SERVER .. "/api/v1/licensing/validate"
+
+local TICKET_URL = SERVER .. "/api/v1/ticket"
+local DELIVERY_URL = SERVER .. "/d/"
 
 local BUILD_ID = "4cb68bcd07880294"
 
@@ -43,6 +47,69 @@ local function fetch(url)
 		return body
 	end
 	return nil
+end
+
+local function post(url, body)
+	local fns = { syn and syn.request, http and http.request, http_request, request }
+	for _, fn in ipairs(fns) do
+		if type(fn) == "function" then
+			local ok, res = pcall(fn, {
+				Url = url,
+				Method = "POST",
+				Headers = { ["Content-Type"] = "application/json" },
+				Body = body,
+			})
+			if ok and type(res) == "table" and res.Body then
+				return res.Body
+			end
+		end
+	end
+	local ok, out = pcall(function()
+		return game:GetService("HttpService"):PostAsync(url, body, Enum.HttpContentType.ApplicationJson)
+	end)
+	if ok and type(out) == "string" then
+		return out
+	end
+	return nil
+end
+
+local function device_id()
+	local hwid = ""
+	pcall(function()
+		local Players = game:GetService("Players")
+		if Players and Players.LocalPlayer then
+			hwid = tostring(Players.LocalPlayer.UserId)
+		end
+	end)
+	pcall(function()
+		hwid = tostring(game:GetService("RbxAnalyticsService"):GetClientId())
+	end)
+	pcall(function()
+		if gethwid then
+			hwid = tostring(gethwid())
+		end
+	end)
+	return hwid
+end
+
+local function fetch_hub(key)
+	local body = ('{"key":%q,"hardware_id":%q,"build_id":%q}'):format(key, device_id(), BUILD_ID)
+	local answer = post(TICKET_URL, body)
+	if not answer then
+		return nil, "the key server did not answer"
+	end
+	local token = answer:match('"ticket"%s*:%s*"([0-9a-fA-F]+)"')
+	if not token then
+
+		local reason = answer:match('"reason"%s*:%s*"([^"]+)"') or answer:match('"status"%s*:%s*"([^"]+)"')
+		return nil, reason or "no download ticket"
+	end
+	say("ticket received, downloading")
+	local source = fetch(DELIVERY_URL .. token)
+	if not source or #source == 0 then
+		return nil, "the download did not arrive"
+	end
+	return source
 end
 
 local function run(source, chunkName)
@@ -118,9 +185,14 @@ pcall(function()
 end)
 
 say("key accepted, loading the hub")
-local hubSource = fetch(HUB_URL)
+local hubSource, why = fetch_hub(theKey)
 if not hubSource then
-	warn("[KEYGATE] could not download the hub -- check your internet and try again")
+
+	say("ticket route unavailable (" .. tostring(why) .. "), trying the public copy")
+	hubSource = fetch(HUB_URL)
+end
+if not hubSource then
+	warn("[KEYGATE] could not download the hub: " .. tostring(why or "no response"))
 	return
 end
 say("fetched " .. #hubSource .. " bytes")
