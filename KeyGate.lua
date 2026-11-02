@@ -13,7 +13,7 @@ local HUB_URL = "https://raw.githubusercontent.com/CoderRvrse/rvrseui-hub/main/U
 local RVRSEUI_URL = "https://raw.githubusercontent.com/CoderRvrse/RvrseUI/main/RvrseUI.lua"
 local ENDPOINT = "https://luavm-rvrse-license-production.up.railway.app/api/v1/licensing/validate"
 
-local BUILD_ID = "b2ef1950afd7edca"
+local BUILD_ID = "4cb68bcd07880294"
 
 local g = (getgenv and getgenv()) or _G or {}
 HUB_URL = g.UNIVERSALHUB_URL or HUB_URL
