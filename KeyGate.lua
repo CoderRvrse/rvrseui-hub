@@ -10,17 +10,17 @@
 -- Help: https://discord.gg/FJxrnAcawn
 
 local SERVER = "https://luavm-rvrse-license-production.up.railway.app"
-local HUB_URL = "https://raw.githubusercontent.com/CoderRvrse/rvrseui-hub/main/UniversalHub_v2.lua"
 local RVRSEUI_URL = "https://raw.githubusercontent.com/CoderRvrse/RvrseUI/main/RvrseUI.lua"
 local ENDPOINT = SERVER .. "/api/v1/licensing/validate"
 
 local TICKET_URL = SERVER .. "/api/v1/ticket"
 local DELIVERY_URL = SERVER .. "/d/"
 
+local GATE_URL = "https://raw.githubusercontent.com/CoderRvrse/rvrseui-hub/main/KeyGate.lua"
+
 local BUILD_ID = "4cb68bcd07880294"
 
 local g = (getgenv and getgenv()) or _G or {}
-HUB_URL = g.UNIVERSALHUB_URL or HUB_URL
 RVRSEUI_URL = g.RVRSEUI_SOURCE or RVRSEUI_URL
 BUILD_ID = g.UNIVERSALHUB_BUILD_ID or BUILD_ID
 
@@ -30,9 +30,22 @@ local function say(...)
 	end
 end
 
+local function requesters()
+	local out = {}
+	local function add(v)
+		if type(v) == "function" then
+			out[#out + 1] = v
+		end
+	end
+	add(syn and syn.request)
+	add(http and http.request)
+	add(http_request)
+	add(request)
+	return out
+end
+
 local function fetch(url)
-	local fns = { syn and syn.request, http and http.request, http_request, request }
-	for _, fn in ipairs(fns) do
+	for _, fn in ipairs(requesters()) do
 		if type(fn) == "function" then
 			local ok, res = pcall(fn, { Url = url, Method = "GET" })
 			if ok and type(res) == "table" and res.StatusCode == 200 and res.Body then
@@ -50,8 +63,7 @@ local function fetch(url)
 end
 
 local function post(url, body)
-	local fns = { syn and syn.request, http and http.request, http_request, request }
-	for _, fn in ipairs(fns) do
+	for _, fn in ipairs(requesters()) do
 		if type(fn) == "function" then
 			local ok, res = pcall(fn, {
 				Url = url,
@@ -138,8 +150,15 @@ end
 say("RvrseUI", RvrseUI.Version and RvrseUI.Version.Full or "?")
 
 local unlocked, theKey = false, nil
+local Window = nil
 
-local Window = RvrseUI:CreateWindow({
+local preset = g.LUAVM_LICENSE_KEY
+if type(preset) == "string" and preset ~= "" then
+	say("key already set, skipping the key window")
+	unlocked, theKey = true, preset
+else
+
+Window = RvrseUI:CreateWindow({
 	Name = "UniversalHub v2",
 	Icon = "lucide://key-round",
 	Theme = "Dark",
@@ -166,6 +185,8 @@ local Window = RvrseUI:CreateWindow({
 	},
 })
 
+end
+
 if not unlocked or type(theKey) ~= "string" or theKey == "" then
 
 	say("no key -- not loading the hub")
@@ -188,10 +209,6 @@ say("key accepted, loading the hub")
 local hubSource, why = fetch_hub(theKey)
 if not hubSource then
 
-	say("ticket route unavailable (" .. tostring(why) .. "), trying the public copy")
-	hubSource = fetch(HUB_URL)
-end
-if not hubSource then
 	warn("[KEYGATE] could not download the hub: " .. tostring(why or "no response"))
 	return
 end
@@ -199,7 +216,8 @@ say("fetched " .. #hubSource .. " bytes")
 
 pcall(function()
 	local env = (getgenv and getgenv()) or _G
-	env.LUAVM_RELOAD = ("getgenv().LUAVM_LICENSE_KEY=%q loadstring(game:HttpGet(%q))()"):format(theKey, HUB_URL)
+
+	env.LUAVM_RELOAD = ("getgenv().LUAVM_LICENSE_KEY=%q loadstring(game:HttpGet(%q))()"):format(theKey, GATE_URL)
 end)
 
 local ok, err = run(hubSource, "=UniversalHub_v2")
