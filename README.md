@@ -1,7 +1,8 @@
 # RvrseUI — UniversalHub v2
 
-This repository holds **only the built, protected hub file** and the small key
-gate that opens it. The source lives in a private repository; nothing here is
+This repository holds **only the small key gate**. The source lives in a
+private repository, and the hub itself is not here at all: it is served by the
+licence server, and only to a key that checks out. Nothing here is
 hand-written.
 
 ## Run it
@@ -41,4 +42,9 @@ Press **Right Ctrl** to hide and show the hub.
 | File | What it is |
 |---|---|
 | `KeyGate.lua` | What you run. Shows the key window, then loads the hub. |
-| `UniversalHub_v2.lua` | The hub itself. Locked — it will not run without a valid key. |
+
+The hub used to sit here as a file anyone could download. It is encrypted, so
+what they got was a locked box — but handing a locked box to every passer-by is
+still a choice, and it is not one we make any more. The gate now asks the
+licence server for a one-time download link, which lasts about a minute and
+works once. Without a key there is nothing to download.
